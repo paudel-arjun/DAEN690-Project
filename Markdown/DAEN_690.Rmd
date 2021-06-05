@@ -1,0 +1,52 @@
+---
+title: "Text_analysis"
+author: "Arjun Paudel"
+date: "6/5/2021"
+output: 
+  html_document: 
+    keep_md: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE, cache=TRUE, cache.lazy=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library, warning=FALSE, message=FALS}
+library(tidyverse)
+library(tidytext)
+library(textrecipes)
+library(widyr)
+library(tidymodels)
+library(here)
+library(janitor)
+tidymodels_prefer()
+```
+
+```{r load-data}
+dt <- read_csv(here("Data/runway_incursion_narrative.csv")) %>% 
+  clean_names()
+```
+
+```{r}
+tokens <- dt %>% 
+  unnest_tokens(word, narrative) %>% 
+  anti_join(get_stopwords())
+
+token_cnts <- tokens %>%
+  count(word) %>% 
+  slice_max(n, n=50)
+
+bigrams <- dt %>% 
+  unnest_tokens(word, narrative, token = "ngrams", n = 2)
+
+bigrams_cnts <- bigrams %>% 
+  count(word) %>% 
+  slice_max(n, n = 50)
+  
+bigrams_cnts %>% 
+  ggplot(aes(x=n, y = fct_reorder(word, n)))+
+  geom_col()
+```
+
