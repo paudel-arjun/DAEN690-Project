@@ -11,6 +11,8 @@ editor_options:
 
 
 
+Load libraries
+
 
 ```r
 library(tidyverse)
@@ -25,14 +27,35 @@ library(themis)
 tidymodels_prefer()
 ```
 
+Read data, convert the outcome/label column to factor.\
+For now try classifying only two categories. 3 categories that were relatively infrequent were dropped/
+
 
 ```r
 dt <- read_csv(here("Data/runway_incursion_narrative.csv")) %>% 
   clean_names()
+dt %>% count(cat_rank)
+```
+
+```
+## # A tibble: 6 x 2
+##   cat_rank     n
+##   <chr>    <int>
+## 1 A          142
+## 2 B          126
+## 3 C         7025
+## 4 D        10245
+## 5 E           34
+## 6 P           29
+```
+
+```r
 dt <- dt %>% 
   filter(cat_rank %in% c("C", "D")) %>% 
   mutate(cat_rank = factor(cat_rank)) 
 ```
+
+Basic eda to see word and bigram frequencies.
 
 
 ```r
@@ -78,6 +101,9 @@ bigrams_cnts %>%
 
 ![](DAEN_690_files/figure-html/eda-2.png)<!-- -->
 
+Split data and create cross fold validation split.\
+Since outcome levels are slightly imbalanced, splits are stratified.
+
 
 ```r
 initialsplit <- initial_split(dt, strata = cat_rank )
@@ -90,6 +116,26 @@ folds <- vfold_cv(dt_train, strata = cat_rank)
 ```r
 #use_glmnet(cat_rank ~ ., data = dt_train)
 ```
+
+**Recipe**
+
+-   tokenize
+
+-   remove stopwords
+
+-   Only keep tokens that occur minimum 100 times but less that 1000 times. After filtering these out, keep only 5000 tokens.
+
+-    tfidf
+
+-   smote for imbalanced labels.
+
+**Model**
+
+-   Glmnet
+
+-   Penalty and mixture tuned
+
+Using sparse matrix representation to speed up.
 
 
 ```r
@@ -142,11 +188,11 @@ glmnet_tune %>% show_best("accuracy")
 ## # A tibble: 5 x 8
 ##   penalty mixture .metric  .estimator  mean     n std_err .config               
 ##     <dbl>   <dbl> <chr>    <chr>      <dbl> <int>   <dbl> <chr>                 
-## 1 0.00886     0.6 accuracy binary     0.784    10 0.00390 Preprocessor1_Model079
-## 2 0.00546     1   accuracy binary     0.783    10 0.00417 Preprocessor1_Model115
-## 3 0.00616     0.8 accuracy binary     0.783    10 0.00360 Preprocessor1_Model096
-## 4 0.00483     1   accuracy binary     0.783    10 0.00375 Preprocessor1_Model114
-## 5 0.00785     0.6 accuracy binary     0.783    10 0.00382 Preprocessor1_Model078
+## 1 0.00785     0.6 accuracy binary     0.782    10 0.00264 Preprocessor1_Model078
+## 2 0.00428     1   accuracy binary     0.782    10 0.00255 Preprocessor1_Model113
+## 3 0.00546     0.8 accuracy binary     0.782    10 0.00273 Preprocessor1_Model095
+## 4 0.00616     0.8 accuracy binary     0.781    10 0.00262 Preprocessor1_Model096
+## 5 0.00483     1   accuracy binary     0.781    10 0.00247 Preprocessor1_Model114
 ```
 
 ```r
@@ -157,11 +203,11 @@ glmnet_tune %>% show_best("roc_auc")
 ## # A tibble: 5 x 8
 ##   penalty mixture .metric .estimator  mean     n std_err .config               
 ##     <dbl>   <dbl> <chr>   <chr>      <dbl> <int>   <dbl> <chr>                 
-## 1 0.00695     0.6 roc_auc binary     0.847    10 0.00415 Preprocessor1_Model077
-## 2 0.01        0.4 roc_auc binary     0.847    10 0.00418 Preprocessor1_Model060
-## 3 0.00886     0.4 roc_auc binary     0.847    10 0.00421 Preprocessor1_Model059
-## 4 0.00428     1   roc_auc binary     0.847    10 0.00412 Preprocessor1_Model113
-## 5 0.00616     0.6 roc_auc binary     0.847    10 0.00418 Preprocessor1_Model076
+## 1 0.00785     0.6 roc_auc binary     0.847    10 0.00250 Preprocessor1_Model078
+## 2 0.00886     0.6 roc_auc binary     0.847    10 0.00251 Preprocessor1_Model079
+## 3 0.00483     1   roc_auc binary     0.847    10 0.00248 Preprocessor1_Model114
+## 4 0.00616     0.8 roc_auc binary     0.847    10 0.00250 Preprocessor1_Model096
+## 5 0.00546     1   roc_auc binary     0.847    10 0.00248 Preprocessor1_Model115
 ```
 
 ```r
@@ -186,8 +232,8 @@ final_fit %>% collect_metrics()
 ## # A tibble: 2 x 4
 ##   .metric  .estimator .estimate .config             
 ##   <chr>    <chr>          <dbl> <chr>               
-## 1 accuracy binary         0.794 Preprocessor1_Model1
-## 2 roc_auc  binary         0.862 Preprocessor1_Model1
+## 1 accuracy binary         0.792 Preprocessor1_Model1
+## 2 roc_auc  binary         0.858 Preprocessor1_Model1
 ```
 
 ```r
@@ -198,7 +244,6 @@ final_fit %>% collect_predictions() %>%
 ```
 ##           Truth
 ## Prediction    C    D
-##          C 1254  387
-##          D  503 2175
+##          C 1282  422
+##          D  475 2140
 ```
-
